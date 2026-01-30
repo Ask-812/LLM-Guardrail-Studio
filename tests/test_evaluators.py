@@ -1,0 +1,142 @@
+"""
+Unit tests for evaluator modules
+"""
+
+import unittest
+from unittest.mock import Mock, patch
+import numpy as np
+
+from guardrails.evaluators import ToxicityEvaluator, HallucinationDetector, AlignmentChecker
+
+
+class TestToxicityEvaluator(unittest.TestCase):
+    """Test cases for ToxicityEvaluator"""
+    
+    def setUp(self):
+        self.evaluator = ToxicityEvaluator()
+    
+    @patch('guardrails.evaluators.Detoxify')
+    def test_evaluate_safe_text(self, mock_detoxify):
+        """Test evaluation of safe text"""
+        mock_model = Mock()
+        mock_model.predict.return_value = {
+            'toxicity': 0.1,
+            'severe_toxicity': 0.05,
+            'obscene': 0.02,
+            'threat': 0.01,
+            'insult': 0.03,
+            'identity_attack': 0.02
+        }
+        mock_detoxify.return_value = mock_model
+        
+        evaluator = ToxicityEvaluator()
+        evaluator.model = mock_model
+        
+        score = evaluator.evaluate("This is a nice day.")
+        self.assertLess(score, 0.5)
+    
+    @patch('guardrails.evaluators.Detoxify')
+    def test_evaluate_toxic_text(self, mock_detoxify):
+        """Test evaluation of toxic text"""
+        mock_model = Mock()
+        mock_model.predict.return_value = {
+            'toxicity': 0.9,
+            'severe_toxicity': 0.8,
+            'obscene': 0.7,
+            'threat': 0.6,
+            'insult': 0.85,
+            'identity_attack': 0.5
+        }
+        mock_detoxify.return_value = mock_model
+        
+        evaluator = ToxicityEvaluator()
+        evaluator.model = mock_model
+        
+        score = evaluator.evaluate("This is toxic content.")
+        self.assertGreater(score, 0.8)
+    
+    def test_evaluate_no_model(self):
+        """Test evaluation when model is not available"""
+        evaluator = ToxicityEvaluator()
+        evaluator.model = None
+        
+        score = evaluator.evaluate("Any text")
+        self.assertEqual(score, 0.0)
+
+
+class TestHallucinationDetector(unittest.TestCase):
+    """Test cases for HallucinationDetector"""
+    
+    def setUp(self):
+        self.detector = HallucinationDetector()
+    
+    def test_evaluate_confident_text(self):
+        """Test evaluation of confident text"""
+        text = "The capital of France is Paris."
+        score = self.detector.evaluate(text)
+        self.assertLess(score, 0.3)
+    
+    def test_evaluate_uncertain_text(self):
+        """Test evaluation of uncertain text"""
+        text = "I think the capital might be Paris, but I'm not sure."
+        score = self.detector.evaluate(text)
+        self.assertGreater(score, 0.5)
+    
+    def test_evaluate_multiple_uncertainties(self):
+        """Test evaluation with multiple uncertainty markers"""
+        text = "I think it could be Paris, maybe London, possibly Rome."
+        score = self.detector.evaluate(text)
+        self.assertGreaterEqual(score, 1.0)
+
+
+class TestAlignmentChecker(unittest.TestCase):
+    """Test cases for AlignmentChecker"""
+    
+    def setUp(self):
+        self.checker = AlignmentChecker()
+    
+    @patch('guardrails.evaluators.SentenceTransformer')
+    def test_evaluate_aligned_texts(self, mock_transformer):
+        """Test evaluation of well-aligned texts"""
+        mock_model = Mock()
+        # Simulate high similarity embeddings
+        mock_model.encode.return_value = np.array([
+            [1.0, 0.0, 0.0],  # prompt embedding
+            [0.9, 0.1, 0.0]   # response embedding
+        ])
+        mock_transformer.return_value = mock_model
+        
+        checker = AlignmentChecker()
+        checker.model = mock_model
+        
+        score = checker.evaluate("What is AI?", "AI is artificial intelligence.")
+        self.assertGreater(score, 0.8)
+    
+    @patch('guardrails.evaluators.SentenceTransformer')
+    def test_evaluate_misaligned_texts(self, mock_transformer):
+        """Test evaluation of misaligned texts"""
+        mock_model = Mock()
+        # Simulate low similarity embeddings
+        mock_model.encode.return_value = np.array([
+            [1.0, 0.0, 0.0],  # prompt embedding
+            [0.0, 1.0, 0.0]   # response embedding
+        ])
+        mock_transformer.return_value = mock_model
+        
+        checker = AlignmentChecker()
+        checker.model = mock_model
+        
+        score = checker.evaluate("What is AI?", "The weather is sunny today.")
+        self.assertLess(score, 0.2)
+    
+    def test_evaluate_no_model(self):
+        """Test evaluation when model is not available"""
+        checker = AlignmentChecker()
+        checker.model = None
+        
+        score = checker.evaluate("Any prompt", "Any response")
+        self.assertEqual(score, 0.0)
+
+
+if __name__ == '__main__':
+    unittest.main()
