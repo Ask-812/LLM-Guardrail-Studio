@@ -45,3 +45,16 @@ Thumbs.db
 
 # Streamlit
 .streamlit/
+
+# Personal documentation (not for GitHub)
+docs/COMPREHENSIVE_GUIDE.md
+
+# Benchmarks
+.benchmarks/
+
+# Database files
+*.db
+guardrails.db
+
+# Environment
+.env

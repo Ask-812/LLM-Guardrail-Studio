@@ -159,5 +159,121 @@ class TestGuardrailPipeline(unittest.TestCase):
         self.assertIn("Potential hallucination detected", result.flags[0])
 
 
+class TestGuardrailResultSerialization(unittest.TestCase):
+    """Test cases for GuardrailResult serialization"""
+    
+    def test_to_dict(self):
+        """Test serialization to dictionary"""
+        result = GuardrailResult()
+        result.add_score("toxicity", 0.5)
+        result.add_score("alignment", 0.8)
+        result.add_flag("Test flag")
+        result.metadata["test_key"] = "test_value"
+        
+        data = result.to_dict()
+        
+        self.assertEqual(data["scores"]["toxicity"], 0.5)
+        self.assertEqual(data["scores"]["alignment"], 0.8)
+        self.assertIn("Test flag", data["flags"])
+        self.assertFalse(data["passed"])
+        self.assertEqual(data["metadata"]["test_key"], "test_value")
+    
+    def test_from_dict(self):
+        """Test deserialization from dictionary"""
+        data = {
+            "scores": {"toxicity": 0.3, "alignment": 0.9},
+            "flags": [],
+            "passed": True,
+            "metadata": {"prompt_length": 50}
+        }
+        
+        result = GuardrailResult.from_dict(data)
+        
+        self.assertEqual(result.scores["toxicity"], 0.3)
+        self.assertEqual(result.scores["alignment"], 0.9)
+        self.assertTrue(result.passed)
+        self.assertEqual(result.metadata["prompt_length"], 50)
+    
+    def test_repr(self):
+        """Test string representation"""
+        result = GuardrailResult()
+        result.add_score("toxicity", 0.1)
+        
+        repr_str = repr(result)
+        
+        self.assertIn("GuardrailResult", repr_str)
+        self.assertIn("passed=True", repr_str)
+
+
+class TestGuardrailPipelineConfiguration(unittest.TestCase):
+    """Test cases for pipeline configuration features"""
+    
+    def test_hallucination_threshold_parameter(self):
+        """Test configurable hallucination threshold"""
+        with patch('guardrails.pipeline.ToxicityEvaluator'), \
+             patch('guardrails.pipeline.HallucinationDetector'), \
+             patch('guardrails.pipeline.AlignmentChecker'):
+            pipeline = GuardrailPipeline(hallucination_threshold=0.8)
+            self.assertEqual(pipeline.hallucination_threshold, 0.8)
+    
+    def test_get_config(self):
+        """Test get_config method"""
+        with patch('guardrails.pipeline.ToxicityEvaluator'), \
+             patch('guardrails.pipeline.HallucinationDetector'), \
+             patch('guardrails.pipeline.AlignmentChecker'):
+            pipeline = GuardrailPipeline(
+                toxicity_threshold=0.5,
+                alignment_threshold=0.6,
+                hallucination_threshold=0.7
+            )
+            config = pipeline.get_config()
+            
+            self.assertEqual(config["toxicity_threshold"], 0.5)
+            self.assertEqual(config["alignment_threshold"], 0.6)
+            self.assertEqual(config["hallucination_threshold"], 0.7)
+            self.assertIn("toxicity", config["enabled_evaluators"])
+    
+    def test_is_ready_property(self):
+        """Test is_ready property"""
+        with patch('guardrails.pipeline.ToxicityEvaluator'), \
+             patch('guardrails.pipeline.HallucinationDetector'), \
+             patch('guardrails.pipeline.AlignmentChecker'):
+            pipeline = GuardrailPipeline()
+            self.assertTrue(pipeline.is_ready)
+    
+    def test_evaluate_batch(self):
+        """Test batch evaluation"""
+        with patch('guardrails.pipeline.ToxicityEvaluator'), \
+             patch('guardrails.pipeline.HallucinationDetector'), \
+             patch('guardrails.pipeline.AlignmentChecker'):
+            pipeline = GuardrailPipeline()
+            
+            # Mock evaluators
+            mock_toxicity = Mock()
+            mock_toxicity.evaluate.return_value = 0.1
+            mock_alignment = Mock()
+            mock_alignment.evaluate.return_value = 0.8
+            mock_hallucination = Mock()
+            mock_hallucination.evaluate.return_value = 0.2
+            
+            pipeline.evaluators = {
+                'toxicity': mock_toxicity,
+                'alignment': mock_alignment,
+                'hallucination': mock_hallucination
+            }
+            
+            pairs = [
+                ("Prompt 1", "Response 1"),
+                ("Prompt 2", "Response 2"),
+                ("Prompt 3", "Response 3")
+            ]
+            
+            results = pipeline.evaluate_batch(pairs)
+            
+            self.assertEqual(len(results), 3)
+            for result in results:
+                self.assertTrue(result.passed)
+
+
 if __name__ == '__main__':
     unittest.main()

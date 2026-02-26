@@ -1,0 +1,215 @@
+# =============================================================================
+# LLM Guardrail Studio - Docker Compose Configuration
+# =============================================================================
+# Provides complete deployment stack with:
+# - API Server (FastAPI)
+# - Dashboard (Streamlit)
+# - Database (PostgreSQL - optional, SQLite by default)
+# - Redis Cache (optional)
+# - Prometheus + Grafana (monitoring)
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # Core Services
+  # ===========================================================================
+  
+  api:
+    build:
+      context: .
+      target: production
+    container_name: guardrail-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - GUARDRAIL_DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/guardrails.db}
+      - GUARDRAIL_API_KEY=${API_KEY:-}
+      - GUARDRAIL_LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - REDIS_URL=${REDIS_URL:-}
+    volumes:
+      - guardrail-data:/app/data
+      - guardrail-logs:/app/logs
+      - guardrail-cache:/app/cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - guardrail-network
+    depends_on:
+      - postgres
+    profiles:
+      - default
+      - api-only
+
+  dashboard:
+    build:
+      context: .
+      target: dashboard
+    container_name: guardrail-dashboard
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    environment:
+      - API_URL=http://api:8000
+      - GUARDRAIL_DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/guardrails.db}
+    volumes:
+      - guardrail-data:/app/data
+    networks:
+      - guardrail-network
+    depends_on:
+      - api
+    profiles:
+      - default
+      - full
+
+  # ===========================================================================
+  # Database
+  # ===========================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: guardrail-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-guardrail}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-guardrail_secret}
+      - POSTGRES_DB=${POSTGRES_DB:-guardrails}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-guardrail}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guardrail-network
+    profiles:
+      - postgres
+      - full
+
+  # ===========================================================================
+  # Caching
+  # ===========================================================================
+  
+  redis:
+    image: redis:7-alpine
+    container_name: guardrail-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guardrail-network
+    profiles:
+      - cache
+      - full
+
+  # ===========================================================================
+  # Monitoring
+  # ===========================================================================
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: guardrail-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - guardrail-network
+    profiles:
+      - monitoring
+      - full
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: guardrail-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - guardrail-network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+      - full
+
+  # ===========================================================================
+  # Nginx Reverse Proxy (Production)
+  # ===========================================================================
+  
+  nginx:
+    image: nginx:alpine
+    container_name: guardrail-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - guardrail-network
+    depends_on:
+      - api
+      - dashboard
+    profiles:
+      - production
+      - full
+
+# =============================================================================
+# Networks
+# =============================================================================
+
+networks:
+  guardrail-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+
+volumes:
+  guardrail-data:
+    driver: local
+  guardrail-logs:
+    driver: local
+  guardrail-cache:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

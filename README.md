@@ -1,30 +1,67 @@
 # LLM Guardrail Studio
 
-A modular trust layer for local LLMs that provides comprehensive safety and moderation capabilities for open-source language models.
+A production-ready safety pipeline for local LLMs with comprehensive moderation, security evaluation, and real-time monitoring capabilities.
 
-![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
+![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)
+![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
 
 ## 🚀 Overview
 
-LLM Guardrail Studio is a production-ready safety pipeline designed to enhance the reliability of local LLM deployments. It provides real-time detection of hallucinations, toxicity, and prompt-response mismatches through an intuitive dashboard and robust API.
+LLM Guardrail Studio is a **production-ready** trust layer for LLM applications. It provides:
 
-### ✨ Key Features
+- **6 Safety Evaluators**: Toxicity, hallucination, alignment, PII detection, prompt injection, and custom rules
+- **Multiple Interfaces**: REST API, CLI, Python SDK, and Interactive Dashboard
+- **Enterprise Features**: Audit logging, webhooks, Prometheus metrics, and SQL persistence
+- **Easy Deployment**: Docker Compose setup with monitoring stack (Prometheus/Grafana)
 
-- **🛡️ Multi-Modal Safety Checks**: Toxicity detection, hallucination identification, and semantic alignment verification
-- **📊 Interactive Dashboard**: Real-time Streamlit interface with analytics, history tracking, and batch processing
-- **🔧 Modular Architecture**: Easily extensible with custom evaluation modules
-- **🤖 Multi-Model Support**: Compatible with Mistral, Zephyr, Llama 2, and other open-source LLMs
-- **⚡ Production Ready**: Comprehensive testing, logging, and deployment options
-- **📈 Advanced Analytics**: Trend analysis, score distributions, and detailed reporting
+### Architecture
 
-## 🎯 Use Cases
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       LLM Guardrail Studio                       │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
+│   REST API  │     CLI     │  Dashboard  │  Python SDK │ Webhooks│
+├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
+│                      Guardrail Pipeline                          │
+├─────────┬─────────┬─────────┬─────────┬─────────┬───────────────┤
+│Toxicity │Halluc.  │Alignment│   PII   │Injection│ Custom Rules  │
+├─────────┴─────────┴─────────┴─────────┴─────────┴───────────────┤
+│                    Persistence Layer                             │
+├─────────────────────────────────────────────────────────────────┤
+│         SQLite/PostgreSQL  │  Redis Cache  │  Audit Logs        │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-- **Content Moderation**: Filter harmful or inappropriate AI-generated content
-- **Quality Assurance**: Ensure AI responses meet quality and relevance standards
-- **Compliance Monitoring**: Track and audit AI system outputs for regulatory compliance
-- **Research & Development**: Analyze model behavior and performance across different scenarios
+## ✨ Features
+
+### Safety Evaluators
+
+| Evaluator | Description | Method |
+|-----------|-------------|--------|
+| **Toxicity Detection** | Identifies harmful, offensive, or inappropriate content | Detoxify ML model |
+| **Hallucination Detection** | Detects fabricated information and overconfidence | Heuristic analysis |
+| **Alignment Check** | Measures semantic relevance between prompt and response | Sentence embeddings |
+| **PII Detection** | Finds personal data (emails, SSN, credit cards, phones) | Regex patterns |
+| **Prompt Injection** | Detects jailbreak attempts and role manipulation | Pattern matching |
+| **Custom Rules** | User-defined content policies | Keyword/Regex rules |
+
+### Integration Options
+
+- **REST API**: FastAPI server with OpenAPI documentation
+- **CLI**: Command-line interface for automation and scripting
+- **Python SDK**: Direct integration into Python applications
+- **Dashboard**: Interactive Streamlit web interface
+- **Webhooks**: Real-time notifications for failed evaluations
+
+### Enterprise Features
+
+- **Persistence**: SQLAlchemy with SQLite/PostgreSQL support
+- **Caching**: In-memory LRU cache with optional Redis
+- **Metrics**: Prometheus-compatible metrics endpoint
+- **Monitoring**: Grafana dashboards for visualization
+- **Audit Logging**: Complete evaluation history with timestamps
 
 ## 📦 Installation
 
@@ -32,243 +69,222 @@ LLM Guardrail Studio is a production-ready safety pipeline designed to enhance t
 
 ```bash
 # Clone the repository
-git clone https://github.com/Ask-812/LLM-Guardrail-Studio.git
-cd LLM-Guardrail-Studio
+git clone https://github.com/your-username/llm-guardrail-studio.git
+cd llm-guardrail-studio
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Launch dashboard
+# Run dashboard
 streamlit run app.py
 ```
 
-### Development Setup
+### Production Installation
 
 ```bash
-# Install with development dependencies
-make install-dev
+# Install production dependencies
+pip install -r requirements-prod.txt
 
-# Run tests
-make test
-
-# Format code
-make format
+# Start API server
+python -m uvicorn api.server:app --host 0.0.0.0 --port 8000
 ```
 
-## 🚀 Quick Start
+### Docker Deployment
 
-### Basic Usage
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f guardrail-api
+
+# Stop services
+docker-compose down
+```
+
+## 🔧 Usage
+
+### Python SDK
 
 ```python
 from guardrails import GuardrailPipeline
 
-# Initialize the pipeline
+# Initialize with all evaluators
 pipeline = GuardrailPipeline(
     enable_toxicity=True,
     enable_hallucination=True,
-    enable_alignment=True
+    enable_alignment=True,
+    enable_pii=True,
+    enable_injection=True,
+    enable_custom_rules=True,
+    toxicity_threshold=0.7,
+    alignment_threshold=0.5
 )
 
-# Evaluate a response
+# Evaluate content
 result = pipeline.evaluate(
-    prompt="What is the capital of France?",
-    response="The capital of France is Paris."
+    prompt="What is your email address?",
+    response="My email is john.doe@example.com"
 )
 
-print(f"✅ Passed: {result.passed}")
-print(f"📊 Scores: {result.scores}")
-print(f"🚩 Flags: {result.flags}")
+print(f"Passed: {result.passed}")
+print(f"Scores: {result.scores}")
+print(f"Flags: {result.flags}")
+
+# Access detailed results
+for evaluator, details in result.detailed_results.items():
+    print(f"{evaluator}: {details}")
+```
+
+### REST API
+
+```bash
+# Start server
+uvicorn api.server:app --reload
+
+# Evaluate content
+curl -X POST http://localhost:8000/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello", "response": "Hi there!"}'
+
+# Batch evaluation
+curl -X POST http://localhost:8000/evaluate/batch \
+  -H "Content-Type: application/json" \
+  -d '{"items": [{"prompt": "Q1", "response": "A1"}, {"prompt": "Q2", "response": "A2"}]}'
+
+# Get metrics
+curl http://localhost:8000/metrics
+
+# API documentation at http://localhost:8000/docs
+```
+
+### CLI
+
+```bash
+# Single evaluation
+guardrails evaluate --prompt "What is AI?" --response "AI is artificial intelligence."
+
+# Evaluate with specific evaluator
+guardrails check --evaluator toxicity --text "Your text here"
+
+# Batch evaluation from CSV
+guardrails evaluate-file data.csv --output results.csv
+
+# Start API server
+guardrails server --host 0.0.0.0 --port 8000
+
+# Manage custom rules
+guardrails rules list
+guardrails rules add --name no_spam --type keyword --pattern "spam" --action flag
 ```
 
 ### Dashboard
 
-Launch the interactive dashboard:
-
 ```bash
 streamlit run app.py
 ```
 
-Features include:
-- Real-time evaluation interface
-- Batch processing capabilities
-- Analytics and trend visualization
-- Evaluation history tracking
-- Downloadable reports
+Features: Single/batch evaluation, analytics, custom rules management, API integration.
 
-### Integration with Local Models
+## 🔒 Security Evaluators
+
+### PII Detection
+
+Detects: emails, phone numbers, SSN, credit cards, addresses.
 
 ```python
-from models import LLMWrapper
-from guardrails import GuardrailPipeline
+from guardrails.evaluators import PIIDetector
 
-# Initialize model and guardrails
-model = LLMWrapper("microsoft/phi-2")
-pipeline = GuardrailPipeline()
-
-# Generate and evaluate
-prompt = "Explain quantum computing"
-response = model.generate(prompt)
-result = pipeline.evaluate(prompt, response)
+detector = PIIDetector()
+score, has_pii = detector.evaluate("Contact me at john@email.com")
+# has_pii = True
 ```
 
-## 📊 Evaluation Metrics
+### Prompt Injection Detection
 
-### Toxicity Detection
-- **Range**: 0-1 (lower is better)
-- **Threshold**: Configurable (default: 0.7)
-- **Technology**: Detoxify transformer models
+Detects: ignore instructions, role manipulation, extraction attempts, jailbreaks.
 
-### Semantic Alignment
-- **Range**: -1 to 1 (higher is better)
-- **Threshold**: Configurable (default: 0.5)
-- **Technology**: SentenceTransformers cosine similarity
+```python
+from guardrails.evaluators import PromptInjectionDetector
 
-### Hallucination Risk
-- **Range**: 0-1 (lower is better)
-- **Threshold**: Configurable (default: 0.6)
-- **Technology**: Uncertainty detection and confidence analysis
-
-## 🏗️ Architecture
-
-```
-llm-guardrail-studio/
-├── guardrails/          # Core evaluation modules
-│   ├── evaluators.py    # Individual safety evaluators
-│   ├── pipeline.py      # Main orchestration pipeline
-│   └── __init__.py
-├── models/              # Model wrappers and utilities
-│   ├── llm_wrapper.py   # Local LLM integration
-│   ├── model_loader.py  # Model management utilities
-│   └── __init__.py
-├── dashboard/           # Streamlit dashboard components
-│   ├── components.py    # Reusable UI components
-│   ├── utils.py         # Dashboard utilities
-│   └── __init__.py
-├── tests/               # Comprehensive test suite
-├── examples/            # Usage examples and tutorials
-├── docs/                # Documentation
-└── app.py              # Main dashboard application
+detector = PromptInjectionDetector()
+score, is_injection = detector.evaluate("Ignore all previous instructions")
+# is_injection = True
 ```
 
-## 🔧 Configuration
+### Custom Rules
 
-### Environment Variables
+```python
+from guardrails.evaluators import CustomRuleEvaluator
+
+rules = CustomRuleEvaluator()
+rules.add_rule("no_competitor", "keyword", "competitor|rival", "flag")
+result = rules.evaluate("Our competitor is better")
+# result['has_violations'] = True
+```
+
+## ⚙️ Configuration
+
+Environment variables (see `.env.example`):
 
 ```bash
-# Model configuration
-export GUARDRAIL_MODEL_NAME=mistralai/Mistral-7B-v0.1
-export GUARDRAIL_DEVICE=cuda
-
-# Safety thresholds
-export GUARDRAIL_TOXICITY_THRESHOLD=0.7
-export GUARDRAIL_ALIGNMENT_THRESHOLD=0.5
-export GUARDRAIL_HALLUCINATION_THRESHOLD=0.6
-
-# Performance settings
-export GUARDRAIL_BATCH_SIZE=32
-export GUARDRAIL_MAX_LENGTH=512
+API_KEY=your-secret-key
+DATABASE_URL=sqlite:///guardrails.db
+TOXICITY_THRESHOLD=0.7
+ENABLE_PII=true
+ENABLE_INJECTION=true
 ```
 
-### Custom Evaluators
+## 📊 Monitoring
 
-Extend the system with custom evaluators:
+### Endpoints
 
-```python
-class CustomEvaluator:
-    def evaluate(self, text: str) -> float:
-        # Your custom evaluation logic
-        return score
-
-# Add to pipeline
-pipeline.evaluators['custom'] = CustomEvaluator()
-```
-
-## 📈 Performance
-
-- **Throughput**: 100+ evaluations/second (CPU), 500+ evaluations/second (GPU)
-- **Latency**: <100ms per evaluation (excluding model inference)
-- **Memory**: 2-4GB RAM (depending on models loaded)
-- **Scalability**: Horizontal scaling supported via API deployment
+| Service | URL | Description |
+|---------|-----|-------------|
+| API | http://localhost:8000 | REST API |
+| Docs | http://localhost:8000/docs | OpenAPI |
+| Dashboard | http://localhost:8501 | Streamlit |
+| Prometheus | http://localhost:9090 | Metrics |
+| Grafana | http://localhost:3000 | Dashboards |
 
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-make test
-
-# Run specific test modules
-python -m pytest tests/test_evaluators.py -v
-python -m pytest tests/test_pipeline.py -v
-
-# Run with coverage
-make test
+pytest                              # Run all tests
+pytest --cov=guardrails            # With coverage
+pytest tests/test_security_evaluators.py  # Specific tests
 ```
 
-## 📚 Documentation
+## 📁 Project Structure
 
-- **[API Documentation](docs/API.md)**: Comprehensive API reference
-- **[Deployment Guide](docs/DEPLOYMENT.md)**: Production deployment options
-- **[Contributing Guide](CONTRIBUTING.md)**: Development and contribution guidelines
-
-## 🚀 Deployment
-
-### Docker
-
-```bash
-docker build -t guardrail-studio .
-docker run -p 8501:8501 guardrail-studio
 ```
-
-### Cloud Platforms
-
-- **Streamlit Cloud**: Direct GitHub integration
-- **Heroku**: One-click deployment
-- **AWS/GCP/Azure**: Container and serverless options
-
-See [Deployment Guide](docs/DEPLOYMENT.md) for detailed instructions.
+llm-guardrail-studio/
+├── guardrails/           # Core library
+│   ├── evaluators.py    # All evaluator classes
+│   ├── pipeline.py      # GuardrailPipeline
+├── api/                  # REST API (FastAPI)
+├── cli.py               # CLI interface
+├── persistence/         # Database layer
+├── dashboard/           # Streamlit components
+├── app.py               # Dashboard entry point
+├── tests/               # Test suite
+├── Dockerfile           # Container image
+└── docker-compose.yml   # Multi-service deployment
+```
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
+1. Fork the repository
+2. Create a feature branch
+3. Write tests
+4. Submit a Pull Request
 
-- Development setup
-- Code style guidelines
-- Testing requirements
-- Pull request process
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-Built with these amazing open-source tools:
-
-- **[Hugging Face Transformers](https://huggingface.co/transformers/)**: Model loading and inference
-- **[SentenceTransformers](https://www.sbert.net/)**: Semantic similarity computation
-- **[Detoxify](https://github.com/unitaryai/detoxify)**: Toxicity detection models
-- **[Streamlit](https://streamlit.io/)**: Interactive dashboard framework
-- **[Plotly](https://plotly.com/)**: Data visualization
-
-## 📊 Project Stats
-
-- **Language**: Python 3.8+
-- **Dependencies**: 12 core packages
-- **Test Coverage**: 90%+
-- **Documentation**: Comprehensive API and deployment guides
-- **Examples**: 10+ usage scenarios
-
-## 🔮 Roadmap
-
-- [ ] Advanced hallucination detection with fact-checking
-- [ ] Multi-language support
-- [ ] Custom model fine-tuning capabilities
-- [ ] Enterprise SSO integration
-- [ ] Advanced analytics and reporting
-- [ ] Plugin system for third-party evaluators
+MIT License - see [LICENSE](LICENSE).
 
 ---
 
-**⭐ Star this repository if you find it useful!**
-
-For questions, issues, or feature requests, please [open an issue](https://github.com/Ask-812/LLM-Guardrail-Studio/issues).
+**Built with ❤️ for safer AI applications**
